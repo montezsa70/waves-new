@@ -1,0 +1,46 @@
+name: Build APK from zip
+
+# Upload the project zip to the repo's main page and this unzips it and builds
+# the APK. It runs whenever a .zip is pushed, or by hand from the Actions tab.
+on:
+  push:
+    paths:
+      - "**.zip"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  apk:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Unzip the project into the workspace
+        shell: bash
+        run: |
+          mkdir _src
+          unzip -q ./*.zip -d _src
+          cd _src
+          # A zip usually holds one top folder; step inside it.
+          if [ "$(ls | wc -l)" -eq 1 ] && [ -d "$(ls)" ]; then cd "$(ls)"; fi
+          cp -a . "$GITHUB_WORKSPACE/"
+          cd "$GITHUB_WORKSPACE"
+          rm -rf _src
+          ls
+
+      - uses: ./.github/actions/setup
+
+      - name: Build
+        run: |
+          chmod +x ./gradlew
+          ./gradlew :app:assembleDev --stacktrace
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: waves-apk-${{ github.sha }}
+          path: app/build/outputs/apk/dev/app-universal-dev.apk
+          retention-days: 14
+          if-no-files-found: error
